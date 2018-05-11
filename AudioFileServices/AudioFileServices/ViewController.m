@@ -20,7 +20,8 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    NSString *path = [[NSBundle mainBundle] pathForResource:@"VoiceOriginFile" ofType:@"wav"];
+//    NSString *path = [[NSBundle mainBundle] pathForResource:@"VoiceOriginFile" ofType:@"wav"];
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"ribuluo" ofType:@"mp3"];
     _player = [[BXAudioPlayer alloc]initWithPath:path];
    
 }

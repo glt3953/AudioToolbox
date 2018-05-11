@@ -47,6 +47,7 @@ void audioQueueCallback(void * __nullable inUserData,AudioQueueRef inAQ,AudioQue
 
 - (void)_createAudioQueueWithAudioStreamDescription
 {
+    //初始化Audio Queue
     OSStatus status = AudioQueueNewOutput(&_audioStreamDescription, audioQueueCallback, (__bridge void *)(self), NULL, kCFRunLoopCommonModes, 0, &_outputQueue);
     assert(status == noErr);
 }
@@ -98,6 +99,7 @@ void audioQueueCallback(void * __nullable inUserData,AudioQueueRef inAQ,AudioQue
     
     OSStatus status = 0;
     AudioQueueBufferRef outBuffer;
+    //创建buffer
     status = AudioQueueAllocateBuffer(_outputQueue, totalSize, &outBuffer);
     assert(status == noErr);
     
@@ -115,6 +117,7 @@ void audioQueueCallback(void * __nullable inUserData,AudioQueueRef inAQ,AudioQue
         startOffset += data.length;
         memcpy(&inPacketDescriptions[i], &packetDescriptions, sizeof(AudioStreamPacketDescription));
     }
+    //将buffer放入音频队列
     status = AudioQueueEnqueueBuffer(_outputQueue, outBuffer, (UInt32)inPacketCount, inPacketDescriptions);
     assert(status == noErr);
     free(inPacketDescriptions);
@@ -128,6 +131,14 @@ void audioFileStreamPacketsProc(void *inClientData,UInt32 inNumberBytes,UInt32 i
 - (void)viewDidLoad {
     [super viewDidLoad];
     _dataArray = [NSMutableArray arrayWithCapacity:0];
+    //初始化音频流
+    /*
+     inClientData上下文对象；
+     AudioFileStream_PropertyListenerProc 在调用AudioFileStreamParseBytes歌曲信息的回调；
+     AudioFileStream_PacketsProc 在调用AudioFileStreamParseBytes对音频数据的回调，主要用于音频帧的数据分类存储。
+     AudioFileTypeID 文件类型的提示，如果无法确定类型可以传入0
+     AudioFileStreamID，获取当前实例对应的AudioFileStreamID，使用其他AudioFileStream API需要传入。
+     */
     AudioFileStreamOpen((__bridge void * _Nullable)(self), audioFileStreamPropertyListenerProc, audioFileStreamPacketsProc, 0, &_audioFileStreamID);
     NSURLSession *session  =  [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:self delegateQueue:nil];
     NSString *wavString = @"http://baxiang.qiniudn.com/VoiceOriginFile.wav";// wav文件
@@ -137,6 +148,13 @@ void audioFileStreamPacketsProc(void *inClientData,UInt32 inNumberBytes,UInt32 i
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data{
+    //读取音频流
+    /*
+     AudioFileStreamID，AudioFileStreamOpen获取的的AudioFileStreamID；
+     inDataByteSize，解析的数据字节长度；
+     inData，解析的数据；
+     AudioFileStreamParseFlags说本次的解析和上一次解析是否是连续的关系，如果是连续的传入0，否则传kAudioFileStreamParseFlag_Discontinuity。
+     */
     AudioFileStreamParseBytes(_audioFileStreamID,  (UInt32)[data length], [data bytes], 0);
 }
 

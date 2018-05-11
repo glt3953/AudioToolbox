@@ -58,55 +58,64 @@ static void BufferCallback(void *inUserData,AudioQueueRef inAQ,
     }
 }
 
--(instancetype)initWithPath:(NSString*)filePath{
+- (instancetype)initWithPath:(NSString*)filePath {
     self = [super init];
-    if (nil !=self ){
-    UInt32 size;
-    OSStatus status=AudioFileOpenURL((__bridge CFURLRef)[NSURL fileURLWithPath:filePath], kAudioFileReadPermission, 0, &audioFile);
-    if (status != noErr) {
-        NSLog(@"*** Error ***filePath:%@--code:%d", filePath,(int)status);
-        return self;
-    }
-    //取得音频数据格式
-    size = sizeof(dataFormat);
-    AudioFileGetProperty(audioFile, kAudioFilePropertyDataFormat, &size, &dataFormat);
-    
-    //创建播放用的音频队列
-    AudioQueueNewOutput(&dataFormat, BufferCallback, (__bridge void * _Nullable)(self),nil, nil, 0, &_queue);
-    
-    size=sizeof(maxPacketSize);
-    AudioFileGetProperty(audioFile, kAudioFilePropertyPacketSizeUpperBound, &size, &maxPacketSize);
-    if (dataFormat.mFramesPerPacket != 0) {
-        Float64 numPacketsPersecond = dataFormat.mSampleRate / dataFormat.mFramesPerPacket;
-        outBufferSize = numPacketsPersecond * maxPacketSize;
+    if (nil != self) {
+        UInt32 size;
+        //打开音频文件
+        OSStatus status = AudioFileOpenURL((__bridge CFURLRef)[NSURL fileURLWithPath:filePath], kAudioFileReadPermission, 0, &audioFile);
+        if (status != noErr) {
+            NSLog(@"*** Error ***filePath:%@--code:%d", filePath,(int)status);
+            return self;
+        }
         
-    } else {
-        outBufferSize = maxBufferSize > maxPacketSize ? maxBufferSize : maxPacketSize;
-    }
-    
-    if (outBufferSize > maxBufferSize && outBufferSize > maxPacketSize){
-        outBufferSize = maxBufferSize;
-    }
-    else {
-        if (outBufferSize < minBufferSize){
-            outBufferSize = minBufferSize;
+        //获得属性的具体内容
+        //音频数据格式
+        size = sizeof(dataFormat);
+        AudioFileGetProperty(audioFile, kAudioFilePropertyDataFormat, &size, &dataFormat);
+        
+        //创建播放用的音频队列
+        AudioQueueNewOutput(&dataFormat, BufferCallback, (__bridge void * _Nullable)(self),nil, nil, 0, &_queue);
+        
+        //理论上的最大Packet大小
+        size = sizeof(maxPacketSize);
+        AudioFileGetProperty(audioFile, kAudioFilePropertyPacketSizeUpperBound, &size, &maxPacketSize);
+        if (dataFormat.mFramesPerPacket != 0) {
+            Float64 numPacketsPersecond = dataFormat.mSampleRate / dataFormat.mFramesPerPacket;
+            outBufferSize = numPacketsPersecond * maxPacketSize;
+            
+        } else {
+            outBufferSize = maxBufferSize > maxPacketSize ? maxBufferSize : maxPacketSize;
+        }
+        
+        if (outBufferSize > maxBufferSize && outBufferSize > maxPacketSize) {
+            outBufferSize = maxBufferSize;
+        } else {
+            if (outBufferSize < minBufferSize) {
+                outBufferSize = minBufferSize;
+            }
+        }
+        numPacketsToRead = outBufferSize / maxPacketSize;
+        packetDescs =(AudioStreamPacketDescription*) malloc (numPacketsToRead * sizeof (AudioStreamPacketDescription));
+        //创建并分配缓冲空间
+        packetIndex = 0;
+        for (int i = 0; i< maxBufferNum; i++) {
+            AudioQueueAllocateBuffer(_queue,  outBufferSize, &buffers[i]);
+            [self audioQueueOutputWithQueue:_queue queueBuffer:buffers[i]];
+        }
+        
+        Float32 gain = 1.0;
+        //设置音量
+        AudioQueueSetParameter(_queue, kAudioQueueParam_Volume, gain);
+        //队列处理开始，此后系统开始自动调用回调(Callback)函数
+        AudioQueueStart(_queue, nil);
+        
+        status = AudioFileClose(audioFile);
+        if (status != noErr) {
+            NSLog(@"*** Error ***AudioFileClose--code:%d", (int)status);
         }
     }
-    numPacketsToRead = outBufferSize / maxPacketSize;
-    packetDescs =(AudioStreamPacketDescription*) malloc (numPacketsToRead * sizeof (AudioStreamPacketDescription));
-    //创建并分配缓冲空间
-    packetIndex = 0;
-    for (int i=0; i< maxBufferNum; i++) {
-        AudioQueueAllocateBuffer(_queue,  outBufferSize, &buffers[i]);
-        [self audioQueueOutputWithQueue:_queue queueBuffer:buffers[i]];
-    }
     
-    Float32 gain = 1.0;
-    //设置音量
-    AudioQueueSetParameter(_queue, kAudioQueueParam_Volume, gain);
-    //队列处理开始，此后系统开始自动调用回调(Callback)函数
-    AudioQueueStart(_queue, nil);
-    }
     return self;
 }
 
